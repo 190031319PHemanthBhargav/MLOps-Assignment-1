@@ -104,6 +104,21 @@ def build_classifier(model_name: str, params: dict[str, Any], *, final: bool = F
     raise ValueError(f"Unsupported model: {model_name}")
 
 
+def build_pipeline(
+    model_name: str = "Logistic Regression",
+    params: dict[str, Any] | None = None,
+    *,
+    final: bool = True,
+) -> Pipeline:
+    """Build a preprocessing-plus-classifier pipeline for the selected model."""
+    if params is None:
+        params = {"C": 0.5} if model_name == "Logistic Regression" else {}
+    return Pipeline(steps=[
+        ("preprocessor", build_preprocessor()),
+        ("classifier", build_classifier(model_name, params, final=final)),
+    ])
+
+
 def candidate_configurations() -> list[tuple[str, dict[str, Any]]]:
     configurations = [
         ("Logistic Regression", {"C": value})
@@ -185,10 +200,7 @@ def main() -> None:
     configurations = candidate_configurations()
 
     for experiment_number, (model_name, params) in enumerate(configurations, start=1):
-        pipeline = Pipeline(steps=[
-            ("preprocessor", preprocessor),
-            ("classifier", build_classifier(model_name, params)),
-        ])
+        pipeline = build_pipeline(model_name, params, final=False)
         parameter_label = ", ".join(
             f"{name}={value}" for name, value in params.items()
         )
@@ -232,10 +244,7 @@ def main() -> None:
     best_result = results_df.iloc[0]
     best_model_name = str(best_result["model_name"])
     best_params = dict(best_result["params"])
-    final_pipeline = Pipeline(steps=[
-        ("preprocessor", build_preprocessor()),
-        ("classifier", build_classifier(best_model_name, best_params, final=True)),
-    ])
+    final_pipeline = build_pipeline(best_model_name, best_params)
     final_pipeline.fit(X_train, y_train)
     y_pred = final_pipeline.predict(X_test)
     y_proba = final_pipeline.predict_proba(X_test)[:, 1]
