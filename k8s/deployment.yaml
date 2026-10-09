@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: api
-          image: heart-disease-prediction
+          image: heart-disease-prediction:v2
           ports:
             - containerPort: 8000
           resources:

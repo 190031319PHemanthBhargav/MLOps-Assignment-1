@@ -3,15 +3,22 @@ from pathlib import Path
 
 import joblib
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
+from prometheus_fastapi_instrumentator import Instrumentator
 
+#configuring API logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
 
 app = FastAPI(
     title="Heart Disease Prediction API",
     description="Predict heart disease risk based on patient clinical features.",
 )
+
+#Instrumenting API to expose /metrics
+Instrumentator().instrument(app).expose(app)
 
 MODEL_PATH = Path(__file__).resolve().parent / "model.pkl"
 
@@ -59,7 +66,11 @@ def health_check():
 
 
 @app.post("/predict", response_model=PredictionResponse)
-def predict(data: PatientData):
+def predict(data: PatientData, request: Request):
+    #logging the incoming API request
+    logger.info(f"Recieved prediction request from {request.client.host}: {data.model_dump()}")
+
+
     if model is None:
         raise HTTPException(status_code=500, detail="Model file not found")
 
@@ -70,11 +81,14 @@ def predict(data: PatientData):
         probabilities = model.predict_proba(input_df)[0]
         confidence = float(probabilities[prediction])
 
+        logger.info(f"Prediction generated: {prediction} with confidence {confidence:.4f}")
+
         return {
             "prediction": prediction,
             "confidence": round(confidence, 4),
             "risk_label": "High Risk" if prediction == 1 else "Low Risk",
         }
     except Exception as exc:
+        logger.error(f"Inference error: {str(exc)}")
         raise HTTPException(status_code=400, detail=f"Inference error: {exc}") from exc
 
